@@ -1,0 +1,89 @@
+name: mirror-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.17.1)'
+        required: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download macOS artifacts from pwa repo
+        env:
+          GH_TOKEN: ${{ secrets.PWA_RELEASE_TOKEN }}
+        run: |
+          mkdir -p /tmp/artifacts
+          gh release download "v${{ inputs.version }}" \
+            --repo JoAiHQ/pwa \
+            --pattern "JoAi_aarch64.app.tar.gz" \
+            --pattern "JoAi_x64.app.tar.gz" \
+            --dir /tmp/artifacts
+
+      - name: Create release and upload artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ inputs.version }}" \
+            --title "JoAi v${{ inputs.version }}" \
+            --notes "Mirrored from JoAi v${{ inputs.version }}" \
+            /tmp/artifacts/JoAi_aarch64.app.tar.gz \
+            /tmp/artifacts/JoAi_x64.app.tar.gz
+
+      - name: Compute SHA256 hashes
+        id: hashes
+        run: |
+          echo "arm64=$(shasum -a 256 /tmp/artifacts/JoAi_aarch64.app.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "x64=$(shasum -a 256 /tmp/artifacts/JoAi_x64.app.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Update cask formula
+        run: |
+          VERSION="${{ inputs.version }}"
+          ARM64_SHA="${{ steps.hashes.outputs.arm64 }}"
+          X64_SHA="${{ steps.hashes.outputs.x64 }}"
+
+          cat > Casks/joai.rb << RUBY
+          cask "joai" do
+            version "${VERSION}"
+
+            on_arm do
+              sha256 "${ARM64_SHA}"
+              url "https://github.com/JoAiHQ/homebrew-joai/releases/download/v#{version}/JoAi_aarch64.app.tar.gz"
+            end
+
+            on_intel do
+              sha256 "${X64_SHA}"
+              url "https://github.com/JoAiHQ/homebrew-joai/releases/download/v#{version}/JoAi_x64.app.tar.gz"
+            end
+
+            name "JoAi"
+            desc "Desktop app for workspace management, file operations, and agent interactions"
+            homepage "https://joai.ai"
+
+            app "JoAi.app"
+
+            zap trash: [
+              "~/Library/Application Support/ai.joai.app",
+              "~/Library/Caches/ai.joai.app",
+              "~/Library/Preferences/ai.joai.app.plist",
+              "~/.joai-cli",
+            ]
+          end
+          RUBY
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' Casks/joai.rb
+
+      - name: Commit updated cask
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/joai.rb
+          git diff --cached --quiet || git commit -m "Update JoAi to v${{ inputs.version }}"
+          git push

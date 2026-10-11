@@ -1,13 +1,13 @@
 cask "joai" do
-  version "0.100.3"
+  version "0.100.4"
 
   on_arm do
-    sha256 "1669d81914c53884af094d1492949e6ba27ef05eba8db1aefb136ea5fd4839d9"
+    sha256 "b18cb299e0f5dab6810f98c76f5dbeef5d2c5059421783bce1d81b8f7cb6eb88"
     url "https://github.com/JoAiHQ/homebrew-joai/releases/download/v#{version}/JoAi_aarch64.app.tar.gz"
   end
 
   on_intel do
-    sha256 "220e40a659d4c46d230f4ce5ad9f0369f17448562f741eb7c5b5a37d810000e6"
+    sha256 "d92e4956a5cfa60a3f8763c94b84a79dae94cf1782ddd5c4479d3d680c0e7481"
     url "https://github.com/JoAiHQ/homebrew-joai/releases/download/v#{version}/JoAi_x64.app.tar.gz"
   end
 
